@@ -36,6 +36,7 @@ let Mouse = {
 
 let Enemies = [];
 let Windows = [];
+let Bullets = [];
 
 let Player = {
 	X: Size.X / 2,
@@ -103,6 +104,8 @@ class Window {
 	}
 }
 
+Windows[0] = new Window(Size.X / 2 - 200, Size.Y / 2 - 200, 400, 400, true);
+
 class Bullet {
 	constructor(X, Y, Dir, Object) {
 		this.X = X;
@@ -112,8 +115,6 @@ class Bullet {
 		this.Speed = 2;
 	}
 }
-
-Windows[0] = new Window(Size.X / 2 - 200, Size.Y / 2 - 200, 400, 400, true);
 
 // CALCULATION/RENDER FUNCTIONS
 
@@ -192,7 +193,7 @@ function CalcPlayer() {
 	Player.X += Player.XVel * Player.Speed * Delta;
 	Player.Y += Player.YVel * Player.Speed * Delta;
 	Player.X = Math.max(Windows[0].X + 20, Player.X);
-	Player.Y = Math.max(Windows[0].Y + 20, Player.Y);
+	Player.Y = Math.max(Windows[0].Y + 18, Player.Y);
 	Player.X = Math.min(Windows[0].X - 20 + Windows[0].SizeX, Player.X);
 	Player.Y = Math.min(Windows[0].Y - 20 + Windows[0].SizeY, Player.Y);
 
@@ -217,7 +218,13 @@ function CalcEnemies() {
 }
 
 function CalcBullets() {
-	//for (let i = 0; i)
+	for (let i = 0; i < Bullets.length; i++) {
+		let Bullet = Bullets[i];
+		Bullet.X += Math.cos(Bullet.Dir) * Bullet.Speed * Delta;
+		Bullet.Y += Math.sin(Bullet.Dir) * Bullet.Speed * Delta;
+
+		Context.ellipse();
+	}
 }
 
 function RenderWindows() {
@@ -227,8 +234,8 @@ function RenderWindows() {
 		Context.fillStyle = "#303030";
 		Context.fillRect(Window.X, Window.Y + 1, Window.SizeX, -25);
 		Context.strokeStyle = "#303030";
-		Context.lineWidth = 8;
-		Context.strokeRect(Window.X, Window.Y + 1, Window.SizeX, Window.SizeY);
+		Context.lineWidth = 4;
+		Context.strokeRect(Window.X + 2, Window.Y + 1, Window.SizeX - 4, Window.SizeY - 3);
 	}
 }
 
