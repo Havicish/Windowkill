@@ -7,6 +7,7 @@ document.onkeyup = HandleKeyUp;
 document.onmousedown = HandleMouseDown;
 document.onmouseup = HandleMouseUp;
 document.onmousemove = HandleMouseMove;
+window.onblur = HandleBlur;
 
 let Size = {
 	X: window.innerWidth,
@@ -26,7 +27,8 @@ let TimeScale = 1;
 let Diff = 0;
 let Grabbing = null;
 let GameState = {
-	State: "Starting",
+	State: "Normal",
+	SubState: null,
 	FirstFrame: true
 }
 let Mouse = {
@@ -34,7 +36,7 @@ let Mouse = {
 	Y: 0
 }
 let Upgrades = {
-	FireRate: 30,
+	FireRate: 0,
 	Speed: 0,
 	KB: 0,
 	MultiShot: 0,
@@ -46,7 +48,6 @@ let Upgrades = {
 	Splash: 0,
 	Piercing: 0
 }
-
 let Perks = {
 	Bellow: 0,
 	Drain: 0,
@@ -56,6 +57,7 @@ let Perks = {
 let Enemies = [];
 let Windows = [];
 let Bullets = [];
+let Particles = [];
 
 let Player = {
 	X: Size.X / 2,
@@ -68,7 +70,8 @@ let Player = {
 	HoldRight: 0,
 	HoldUp: 0,
 	HoldDown: 0,
-	Reload: 0
+	Reload: 0,
+	Shootings: false
 }
 
 // FUNCTIONS
@@ -94,7 +97,19 @@ function Log(Msg) {
 	Debug.appendChild(NewItem);
 }
 
+function Direction(Object0, Object1) {
+	return Math.atan2(Object1.Y - Object0.Y, Object1.X - Object0.X);
+}
+
 // CLASSES
+
+class Color {
+	constructor(Hue, Staturation, Lightness) {
+		this.Hue = Hue;
+		this.Staturation = Staturation;
+		this.Lightness = Lightness;
+	}
+}
 
 class Triangle {
 	constructor(X, Y) {
@@ -132,7 +147,18 @@ class Bullet {
 		this.Y = Y;
 		this.Dir = Dir;
 		this.Object = Object;
-		this.Speed = 2;
+		this.Speed = 15;
+		this.Piercings = Upgrades.Piercing + 1;
+	}
+}
+
+class Particle {
+	constructor(X, Y, Color) {
+		this.X = X;
+		this.Y = Y;
+		this.Color = Color;
+		this.Dir = Math.random() * 2 * Math.PI;
+		this.Size = 3;
 	}
 }
 
@@ -150,6 +176,15 @@ function HandleKeyDown() {
 	}
 	if (window.event.key == "a" || window.event.key == "A") {
 		Player.HoldLeft = 1;
+	}
+	if (window.event.key == "Escape") {
+		if (GameState.State == "Normal") {
+			GameState.State = "Paused";
+			GameState.FirstFrame = true;
+		} else if (GameState.State == "Paused" || GameState.State == "Shop") {
+			GameState.State = "Normal";
+			GameState.FirstFrame = true;
+		}
 	}
 }
 
@@ -169,6 +204,8 @@ function HandleKeyUp() {
 }
 
 function HandleMouseDown() {
+	Player.Shooting = true;
+
 	for (let i = 0; i < Windows.length; i++) {
 		let Window = Windows[i];
 		if (Window.Locked == false && Window.X < Mouse.X && Window.Y > Mouse.Y && Window.X + Window.SizeX > Mouse.X && Window.Y - 24 < Mouse.Y) {
@@ -181,6 +218,8 @@ function HandleMouseDown() {
 }
 
 function HandleMouseUp() {
+	Player.Shooting = false;
+
 	if (Grabbing !== null) {
 		Grabbing = null;
 		TimeScale += .75;
@@ -203,6 +242,11 @@ function HandleMouseMove() {
 	}
 }
 
+function HandleBlur() {
+	GameState.State = "Paused";
+	GameState.FirstFrame = true;
+}
+
 function CalcPlayer() {
 	Player.XVel += Player.HoldRight * Delta;
 	Player.XVel -= Player.HoldLeft * Delta;
@@ -216,6 +260,14 @@ function CalcPlayer() {
 	Player.Y = Math.max(Windows[0].Y + 18, Player.Y);
 	Player.X = Math.min(Windows[0].X - 20 + Windows[0].SizeX, Player.X);
 	Player.Y = Math.min(Windows[0].Y - 20 + Windows[0].SizeY, Player.Y);
+
+	Player.Reload -= 1 * Delta;
+	if (Player.Shooting == true && Player.Reload <= 0) {
+		Player.Reload = 30 - Upgrades.FireRate * 3;
+		Bullets.push(new Bullet(Player.X, Player.Y, Direction(Player, Mouse), Player));
+		Particles.push(new Particle(Player.X, Player.Y, new Color(0, 0, 50)));
+		Particles.push(new Particle(Player.X, Player.Y, new Color(0, 0, 50)));
+	}
 
 	Context.beginPath();
 	Context.arc(Player.X, Player.Y, 12, 0, Rad);
@@ -243,13 +295,71 @@ function CalcBullets() {
 		Bullet.X += Math.cos(Bullet.Dir) * Bullet.Speed * Delta;
 		Bullet.Y += Math.sin(Bullet.Dir) * Bullet.Speed * Delta;
 
-		Context.beginPath();
-		Context.ellipse(Bullet.X, Bullet.Y, 9, 6, Bullet.Dir, 0, Rad);
-		Context.fillStyle = "white";
-		Context.strokeStyle = "black";
-		Context.lineWidth = 6;
-		Context.stroke();
-		Context.fill();
+		if (Bullet.X < Windows[0].X) {
+			Windows[0].LeftVel += Upgrades.KB + 2;
+			Bullets.splice(i, 1);
+			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
+			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
+			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
+			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
+			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
+			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
+		} else if (Bullet.Y < Windows[0].Y) {
+			Windows[0].TopVel += Upgrades.KB + 2;
+			Bullets.splice(i, 1);
+			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
+			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
+			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
+			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
+			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
+			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
+		} else if (Bullet.X > Windows[0].X + Windows[0].SizeX) {
+			Windows[0].RightVel += Upgrades.KB + 2;
+			Bullets.splice(i, 1);
+			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
+			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
+			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
+			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
+			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
+			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
+		} else if (Bullet.Y > Windows[0].Y + Windows[0].SizeY) {
+			Windows[0].BottomVel += Upgrades.KB + 2;
+			Bullets.splice(i, 1);
+			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
+			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
+			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
+			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
+			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
+			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
+		} else {
+			Context.beginPath();
+			Context.ellipse(Bullet.X, Bullet.Y, 8, 4, Bullet.Dir, 0, Rad);
+			Context.fillStyle = "white";
+			Context.strokeStyle = "black";
+			Context.lineWidth = 6;
+			Context.stroke();
+			Context.fill();
+		}
+	}
+}
+
+function CalcParticles() {
+	for (let i = 0; i < Particles.length; i++) {
+		let Particle = Particles[i];
+
+		Particle.X += Math.cos(Particle.Dir) * 2 * Delta;
+		Particle.Y += Math.sin(Particle.Dir) * 2 * Delta;
+
+		Particle.Size -= .1 * Delta;
+
+		if (Particle.Size <= 0) {
+			Particles.splice(i, 1);
+		} else {
+			Context.beginPath();
+			Context.ellipse(Particle.X, Particle.Y, Particle.Size * 1.5, Particle.Size, Particle.Dir, 0, Rad);
+			Context.fillStyle = `hsl(${Particle.Color.Hue}, ${Particle.Color.Staturation}%, ${Particle.Color.Lightness}%)`;
+			Context.fill();
+		}
 	}
 }
 
@@ -258,20 +368,20 @@ function CalcWindows() {
 		let Window = Windows[i];
 
 		if (i === 0) {
-			Window.LeftVel -= Diff / 60 / 3600 + .05 - (1 - Window.SizeY / 200);
-			Window.RightVel -= Diff / 60 / 3600 + .05 - (1 - Window.SizeY / 200);
-			Window.BottomVel -= Diff / 60 / 3600 + .05 - (1 - Window.SizeY / 200);
-			Window.TopVel -= Diff / 60 / 3600 + .05 - (1 - Window.SizeY / 200);
-			Window.LeftVel /= 1.05;
-			Window.RightVel /= 1.05;
-			Window.BottomVel /= 1.05;
-			Window.TopVel /= 1.05;
+			Window.LeftVel -= (Diff / 60 / 3600 + .015) / 400 * Window.SizeX * Delta;
+			Window.RightVel -= (Diff / 60 / 3600 + .015) / 400 * Window.SizeX * Delta;
+			Window.BottomVel -= (Diff / 60 / 3600 + .015) / 400 * Window.SizeY * Delta;
+			Window.TopVel -= (Diff / 60 / 3600 + .015) / 400 * Window.SizeY * Delta;
+			Window.LeftVel /= 1 + (.05 * Delta);
+			Window.RightVel /=  1 + (.05 * Delta);
+			Window.BottomVel /=  1 + (.05 * Delta);
+			Window.TopVel /=  1 + (.05 * Delta);
 		}
 
-		Window.X -= Window.LeftVel;
-		Window.Y -= Window.TopVel;
-		Window.SizeX += Window.RightVel + Window.LeftVel;
-		Window.SizeY += Window.BottomVel + Window.TopVel;
+		Window.X -= Window.LeftVel * Delta;
+		Window.Y -= Window.TopVel * Delta;
+		Window.SizeX += (Window.RightVel + Window.LeftVel) * Delta;
+		Window.SizeY += (Window.BottomVel + Window.TopVel) * Delta;
 
 		BackgroundContext.clearRect(Window.X, Window.Y - 23, Window.SizeX, Window.SizeY + 23);
 		Context.fillStyle = "#303030";
@@ -292,14 +402,16 @@ function Frame() {
 	BackgroundCanvas.width = Size.X;
 	BackgroundCanvas.height = Size.Y;
 	Delta = Math.floor((((Date.now() - StartTime) / 1000) - CurrTime) * TimeScale * 6000) / 100;
+	if (GameState.State === "Paused" || GameState.State === "Shop") {Delta = 0}
 	Diff += Delta;
 	CurrTime = (Date.now() - StartTime) / 1000;
 
 	Context.clearRect(0, 0, Size.X, Size.Y);
 
-	CalcPlayer();
 	CalcBullets();
+	CalcPlayer();
 	CalcEnemies();
+	CalcParticles();
 	BackgroundContext.clearRect(0, 0, Size.X, Size.Y);
 	BackgroundContext.drawImage(Get("BackgroundImage"), 0, 0, Size.X + 1, Size.Y + 1)
 	CalcWindows();
