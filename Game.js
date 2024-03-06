@@ -103,7 +103,17 @@ class Window {
 	}
 }
 
-Windows.push(new Window(Size.X / 2 - 200, Size.Y / 2 - 200, 400, 400, true));
+class Bullet {
+	constructor(X, Y, Dir, Object) {
+		this.X = X;
+		this.Y = Y;
+		this.Dir = Dir;
+		this.Object = Object;
+		this.Speed = 2;
+	}
+}
+
+Windows[0] = new Window(Size.X / 2 - 200, Size.Y / 2 - 200, 400, 400, true);
 
 // CALCULATION/RENDER FUNCTIONS
 
@@ -181,6 +191,10 @@ function CalcPlayer() {
 	Player.YVel /= 1 + (.1 * Delta);
 	Player.X += Player.XVel * Player.Speed * Delta;
 	Player.Y += Player.YVel * Player.Speed * Delta;
+	Player.X = Math.max(Windows[0].X + 20, Player.X);
+	Player.Y = Math.max(Windows[0].Y + 20, Player.Y);
+	Player.X = Math.min(Windows[0].X - 20 + Windows[0].SizeX, Player.X);
+	Player.Y = Math.min(Windows[0].Y - 20 + Windows[0].SizeY, Player.Y);
 
 	Context.beginPath();
 	Context.arc(Player.X, Player.Y, 12, 0, Rad);
@@ -200,6 +214,10 @@ function CalcEnemies() {
 			
 		}
 	}
+}
+
+function CalcBullets() {
+	//for (let i = 0; i)
 }
 
 function RenderWindows() {
@@ -230,6 +248,7 @@ function Frame() {
 	Context.clearRect(0, 0, Size.X, Size.Y);
 
 	CalcPlayer();
+	CalcBullets();
 	CalcEnemies();
 	BackgroundContext.clearRect(0, 0, Size.X, Size.Y);
 	BackgroundContext.drawImage(Get("BackgroundImage"), 0, 0, Size.X + 1, Size.Y + 1)
