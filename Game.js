@@ -33,6 +33,25 @@ let Mouse = {
 	X: 0,
 	Y: 0
 }
+let Upgrades = {
+	FireRate: 30,
+	Speed: 0,
+	KB: 0,
+	MultiShot: 0,
+	Homing: 0,
+	Wealth: 0,
+	Heals: 0,
+	MaxHealth: 0,
+	Freezing: 0,
+	Splash: 0,
+	Piercing: 0
+}
+
+let Perks = {
+	Bellow: 0,
+	Drain: 0,
+	Peer: 0
+}
 
 let Enemies = [];
 let Windows = [];
@@ -48,7 +67,8 @@ let Player = {
 	HoldLeft: 0,
 	HoldRight: 0,
 	HoldUp: 0,
-	HoldDown: 0
+	HoldDown: 0,
+	Reload: 0
 }
 
 // FUNCTIONS
@@ -190,8 +210,8 @@ function CalcPlayer() {
 	Player.YVel -= Player.HoldUp * Delta;
 	Player.XVel /= 1 + (.1 * Delta);
 	Player.YVel /= 1 + (.1 * Delta);
-	Player.X += Player.XVel * Player.Speed * Delta;
-	Player.Y += Player.YVel * Player.Speed * Delta;
+	Player.X += Player.XVel * Player.Speed * Delta * (Upgrades.Speed / 8 + 1);
+	Player.Y += Player.YVel * Player.Speed * Delta * (Upgrades.Speed / 8 + 1);
 	Player.X = Math.max(Windows[0].X + 20, Player.X);
 	Player.Y = Math.max(Windows[0].Y + 18, Player.Y);
 	Player.X = Math.min(Windows[0].X - 20 + Windows[0].SizeX, Player.X);
@@ -223,13 +243,36 @@ function CalcBullets() {
 		Bullet.X += Math.cos(Bullet.Dir) * Bullet.Speed * Delta;
 		Bullet.Y += Math.sin(Bullet.Dir) * Bullet.Speed * Delta;
 
-		Context.ellipse();
+		Context.beginPath();
+		Context.ellipse(Bullet.X, Bullet.Y, 9, 6, Bullet.Dir, 0, Rad);
+		Context.fillStyle = "white";
+		Context.strokeStyle = "black";
+		Context.lineWidth = 6;
+		Context.stroke();
+		Context.fill();
 	}
 }
 
-function RenderWindows() {
+function CalcWindows() {
 	for (let i = 0; i < Windows.length; i++) {
 		let Window = Windows[i];
+
+		if (i === 0) {
+			Window.LeftVel -= Diff / 60 / 3600 + .05 - (1 - Window.SizeY / 200);
+			Window.RightVel -= Diff / 60 / 3600 + .05 - (1 - Window.SizeY / 200);
+			Window.BottomVel -= Diff / 60 / 3600 + .05 - (1 - Window.SizeY / 200);
+			Window.TopVel -= Diff / 60 / 3600 + .05 - (1 - Window.SizeY / 200);
+			Window.LeftVel /= 1.05;
+			Window.RightVel /= 1.05;
+			Window.BottomVel /= 1.05;
+			Window.TopVel /= 1.05;
+		}
+
+		Window.X -= Window.LeftVel;
+		Window.Y -= Window.TopVel;
+		Window.SizeX += Window.RightVel + Window.LeftVel;
+		Window.SizeY += Window.BottomVel + Window.TopVel;
+
 		BackgroundContext.clearRect(Window.X, Window.Y - 23, Window.SizeX, Window.SizeY + 23);
 		Context.fillStyle = "#303030";
 		Context.fillRect(Window.X, Window.Y + 1, Window.SizeX, -25);
@@ -259,7 +302,7 @@ function Frame() {
 	CalcEnemies();
 	BackgroundContext.clearRect(0, 0, Size.X, Size.Y);
 	BackgroundContext.drawImage(Get("BackgroundImage"), 0, 0, Size.X + 1, Size.Y + 1)
-	RenderWindows();
+	CalcWindows();
 
 	GameState.FirstFrame = false
 
