@@ -1,7 +1,7 @@
 // DUBEG VARS
 
 let DebugVars = {
-	InfWindow: true
+	InfWindow: false
 }
 
 // INIT
@@ -42,9 +42,9 @@ let Mouse = {
 	Y: 0
 }
 let Upgrades = {
-	FireRate: 10,
+	FireRate: 0,
 	Speed: 0,
-	KB: 5,
+	KB: 0,
 	MultiShot: 0,
 	Homing: 0,
 	Wealth: 0,
@@ -52,8 +52,8 @@ let Upgrades = {
 	MaxHealth: 0,
 	Freezing: 0,
 	Splash: 0,
-	Piercing: 1000,
-	Damage: -.99
+	Piercing: 0,
+	Damage: 0
 }
 let Perks = {
 	Bellow: 0,
@@ -67,6 +67,7 @@ let Enemies = [];
 let Windows = [];
 let Bullets = [];
 let Particles = [];
+let Coins = [];
 
 let Player = {
 	X: Size.X / 2,
@@ -80,7 +81,8 @@ let Player = {
 	HoldUp: 0,
 	HoldDown: 0,
 	Reload: 0,
-	Shootings: false
+	Shootings: false,
+	Coins: 0
 }
 
 // FUNCTIONS
@@ -191,6 +193,19 @@ class Particle {
 	}
 }
 
+class Coin {
+	constructor(X, Y) {
+		let Dir = Math.random() * Rad;
+		this.X = X;
+		this.Y = Y;
+		this.Size = Math.random() + 2.5;
+		this.XVel = Math.cos(Dir) * 2;
+		this.YVel = Math.sin(Dir) * 2;
+		this.Speed = 0.5;
+		this.Grabbed = false;
+	}
+}
+
 // CALCULATION/RENDER FUNCTIONS
 
 function HandleKeyDown() {
@@ -283,8 +298,8 @@ function CalcPlayer() {
 	Player.YVel -= Player.HoldUp * Delta;
 	Player.XVel /= 1 + (.1 * Delta);
 	Player.YVel /= 1 + (.1 * Delta);
-	Player.X += Player.XVel * Player.Speed * Delta * (Upgrades.Speed / 8 + 1);
-	Player.Y += Player.YVel * Player.Speed * Delta * (Upgrades.Speed / 8 + 1);
+	Player.X += Player.XVel * Player.Speed * Delta * (Upgrades.Speed / 6 + 1);
+	Player.Y += Player.YVel * Player.Speed * Delta * (Upgrades.Speed / 6 + 1);
 	Player.X = Math.max(Windows[0].X + 20, Player.X);
 	Player.Y = Math.max(Windows[0].Y + 18, Player.Y);
 	Player.X = Math.min(Windows[0].X - 20 + Windows[0].SizeX, Player.X);
@@ -328,6 +343,7 @@ function CalcEnemies() {
 				Enemy.YVel = Math.sin(Direction(Player, Enemy)) * 3;
 				Enemy.Flashing = 30;
 				Enemy.Health -= 1;
+				Player.Health -= 1;
 			}
 
 			if (Enemy.Health > 0) {
@@ -343,6 +359,7 @@ function CalcEnemies() {
 			} else {
 				for (let ii = 0; ii < 4; ii++) {Particles.push(new Particle(Enemy.X, Enemy.Y, new Color(46, 88, 50), .75));}
 				for (let ii = 0; ii < 2; ii++) {Particles.push(new Particle(Enemy.X, Enemy.Y, new Color(0, 0, 100), 1));}
+				for (let ii = 0; ii < Upgrades.Wealth + 2; ii++) {Coins.push(new Coin(Enemy.X, Enemy.Y));}
 				Enemies.splice(i, 1);
 			}
 		}
@@ -361,8 +378,8 @@ function CalcBullets() {
 			if (Distance(Enemy, Bullet) < 20 && Bullet.Piercings > 0 && Bullet.Hits.indexOf(Enemy) == -1) {
 				Enemy.Health -= 1 + Upgrades.Damage;
 				Enemy.Flashing = 30;
-				Enemy.XVel = Math.cos(Bullet.Dir) * Upgrades.KB * 2;
-				Enemy.YVel = Math.sin(Bullet.Dir) * Upgrades.KB * 2;
+				Enemy.XVel = Math.cos(Bullet.Dir) * (Upgrades.KB - 1) * 2;
+				Enemy.YVel = Math.sin(Bullet.Dir) * (Upgrades.KB - 1) * 2;
 				Bullet.Hits.push(Enemy);
 				for (let ii = 0; ii < 4; ii++) {Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100), 1));}
 				Bullet.Piercings -= 1;
@@ -430,10 +447,10 @@ function CalcWindows() {
 		let Window = Windows[i];
 
 		if (i === 0) {
-			Window.LeftVel -= (Diff / 60 / 36000 + .015) / 400 * Window.SizeX * Delta;
-			Window.RightVel -= (Diff / 60 / 36000 + .015) / 400 * Window.SizeX * Delta;
-			Window.BottomVel -= (Diff / 60 / 36000 + .015) / 400 * Window.SizeY * Delta;
-			Window.TopVel -= (Diff / 60 / 3600 + .015) / 400 * Window.SizeY * Delta;
+			Window.LeftVel -= (Diff / 60 / 36000 + .015) / 400 * (Window.SizeX + 24) * Delta;
+			Window.RightVel -= (Diff / 60 / 36000 + .015) / 400 * (Window.SizeX + 24) * Delta;
+			Window.BottomVel -= (Diff / 60 / 36000 + .015) / 400 * (Window.SizeY + 24) * Delta;
+			Window.TopVel -= (Diff / 60 / 3600 + .015) / 400 * (Window.SizeY + 24) * Delta;
 			Window.LeftVel /= 1 + (.05 * Delta);
 			Window.RightVel /=  1 + (.05 * Delta);
 			Window.BottomVel /=  1 + (.05 * Delta);
@@ -454,6 +471,37 @@ function CalcWindows() {
 	}
 }
 
+function CalcCoins() {
+	for (let i = 0; i < Coins.length; i++) {
+		let Coin = Coins[i];
+
+		if (Distance(Player, Coin) < 48) {
+			Coin.Grabbed = true;
+		}
+
+		if (Coin.Grabbed == true) {
+			Coin.XVel += Math.cos(Direction(Coin, Player)) * Coin.Speed * Delta;
+			Coin.YVel += Math.sin(Direction(Coin, Player)) * Coin.Speed * Delta;
+			Coin.Speed += .005 * Delta;
+
+			if (Distance(Player, Coin) < 24) {
+				Player.Coins += 1;
+				Coins.splice(i, 1);
+			}
+		}
+
+		Coin.XVel /= 1 + (.1 * Delta);
+		Coin.YVel /= 1 + (.1 * Delta);
+		Coin.X += Coin.XVel * Delta;
+		Coin.Y += Coin.YVel * Delta;
+
+		Context.beginPath();
+		Context.arc(Coin.X, Coin.Y, Coin.Size, 0, Rad);
+		Context.fillStyle = "#a935ff";
+		Context.fill();
+	}
+}
+
 // MAIN LOOP
 
 function Frame() {
@@ -471,7 +519,7 @@ function Frame() {
 
 	NewEnemy -= 1 * Delta;
 	if (NewEnemy <= 0) {
-		NewEnemy = 10 - Diff / 3600;
+		NewEnemy = 180 - Diff / 3600;
 		Enemies.push(new Enemy(Math.round(Math.random()) * Size.X, Math.round(Math.random()) * Size.Y, "Triangle"));
 	}
 
@@ -481,6 +529,7 @@ function Frame() {
 	CalcBullets();
 	CalcPlayer();
 	CalcEnemies();
+	CalcCoins();
 	BackgroundContext.clearRect(0, 0, Size.X, Size.Y);
 	BackgroundContext.drawImage(Get("BackgroundImage"), 0, 0, Size.X + 1, Size.Y + 1)
 	CalcWindows();
