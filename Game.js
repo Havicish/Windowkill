@@ -1,5 +1,9 @@
 // DUBEG VARS
 
+let DebugVars = {
+	InfWindow: true
+}
+
 // INIT
 
 document.onkeydown = HandleKeyDown;
@@ -20,6 +24,8 @@ let BackgroundContext = BackgroundCanvas.getContext("2d");
 
 let Rad = 2 * Math.PI;
 
+let Grapchicks = 100;
+
 let StartTime = Date.now();
 let CurrTime = 0;
 let Delta = 0;
@@ -36,9 +42,9 @@ let Mouse = {
 	Y: 0
 }
 let Upgrades = {
-	FireRate: 0,
+	FireRate: 10,
 	Speed: 0,
-	KB: 0,
+	KB: 5,
 	MultiShot: 0,
 	Homing: 0,
 	Wealth: 0,
@@ -46,14 +52,17 @@ let Upgrades = {
 	MaxHealth: 0,
 	Freezing: 0,
 	Splash: 0,
-	Piercing: 0
+	Piercing: 1000,
+	Damage: -.99
 }
 let Perks = {
 	Bellow: 0,
 	Drain: 0,
-	Peer: 0
+	Peer: 0,
+	ClockWork: 0
 }
 
+let NewEnemy = 180;
 let Enemies = [];
 let Windows = [];
 let Bullets = [];
@@ -85,7 +94,7 @@ let LogLogs = 0;
 function Log(Msg) {
 	let Debug = Get("Debug");
 	if (LogSetFirstLog == false) {
-		Debug.style = "position: absolute; bottom: 0%; left: 0; color: #00ff00; font-family: monospace; Background-color: #252525; width: 100%; height: 25%; overflow: scroll;";
+		Debug.style = "position: absolute; bottom: 0%; left: 0; color: #00ff00; font-family: monospace; Background-color: #252525; width: 100%; height: 25%; overflow: scroll; user-select: none;";
 		Get("Debug.FirstLog").textContent = `First log at: ${(Date.now() - StartTime) / 1000}s`;
 		LogSetFirstLog = true;
 	}
@@ -101,6 +110,22 @@ function Direction(Object0, Object1) {
 	return Math.atan2(Object1.Y - Object0.Y, Object1.X - Object0.X);
 }
 
+function Distance(Object0, Object1) {
+	return Math.sqrt((Object0.X - Object1.X) ** 2 + (Object0.Y - Object1.Y) ** 2);
+}
+
+function PathShape(X, Y, Sides, Rot, Radius) {
+	Context.beginPath();
+
+	Rot = Rot % Rad;
+	Context.moveTo(Math.cos(Rot) * Radius + X, Math.sin(Rot) * Radius + Y);
+	for (let i = 1; i < Sides; i++) {
+		Rot += Rad / Sides;
+		Context.lineTo(Math.cos(Rot) * Radius + X, Math.sin(Rot) * Radius + Y);
+	}
+	Context.closePath();
+}
+
 // CLASSES
 
 class Color {
@@ -111,16 +136,18 @@ class Color {
 	}
 }
 
-class Triangle {
-	constructor(X, Y) {
+class Enemy {
+	constructor(X, Y, Type) {
 		this.X = X;
 		this.Y = Y;
 		this.XVel = 0;
 		this.YVel = 0;
-		this.Dir = 0;
-		this.Health = Diff / 40 + 2;
+		this.Dir = Math.random() * Rad;
+		this.Health = Diff / 90 / 60 + 1.5;
 		this.Speed = 1.5;
-		this.Type = "Triangle";
+		this.Type = Type;
+		this.Timer = 120;
+		this.Flashing = 0;
 	}
 }
 
@@ -149,16 +176,18 @@ class Bullet {
 		this.Object = Object;
 		this.Speed = 15;
 		this.Piercings = Upgrades.Piercing + 1;
+		this.Hits = [];
 	}
 }
 
 class Particle {
-	constructor(X, Y, Color) {
+	constructor(X, Y, Color, Moving) {
 		this.X = X;
 		this.Y = Y;
 		this.Color = Color;
 		this.Dir = Math.random() * 2 * Math.PI;
 		this.Size = 3;
+		this.Moving = Moving;
 	}
 }
 
@@ -265,17 +294,15 @@ function CalcPlayer() {
 	if (Player.Shooting == true && Player.Reload <= 0) {
 		Player.Reload = 30 - Upgrades.FireRate * 3;
 		Bullets.push(new Bullet(Player.X, Player.Y, Direction(Player, Mouse), Player));
-		Particles.push(new Particle(Player.X, Player.Y, new Color(0, 0, 50)));
-		Particles.push(new Particle(Player.X, Player.Y, new Color(0, 0, 50)));
 	}
 
 	Context.beginPath();
 	Context.arc(Player.X, Player.Y, 12, 0, Rad);
 	Context.strokeStyle = "#000000";
-	Context.lineWidth = 12;
+	Context.lineWidth = 9;
 	Context.stroke();
 	Context.strokeStyle = "#ffffff";
-	Context.lineWidth = 6;
+	Context.lineWidth = 3;
 	Context.stroke();
 }
 
@@ -284,7 +311,40 @@ function CalcEnemies() {
 		let Enemy = Enemies[i];
 		
 		if (Enemy.Type == "Triangle") {
+			Enemy.Dir += .01 * Delta;
+
+			Enemy.XVel += Math.cos(Direction(Enemy, Player)) * .1 * Delta;
+			Enemy.YVel += Math.sin(Direction(Enemy, Player)) * .1 * Delta;
+			Enemy.XVel /= 1 + (.05 * Delta);
+			Enemy.YVel /= 1 + (.05 * Delta);
+			Enemy.X += Enemy.XVel * Delta;
+			Enemy.Y += Enemy.YVel * Delta;
 			
+			Enemy.Flashing -= 1 * Delta;
+			if (Distance(Enemy, Player) < 24) {
+				Player.XVel = Math.cos(Direction(Enemy, Player)) * 16;
+				Player.YVel = Math.sin(Direction(Enemy, Player)) * 16;
+				Enemy.XVel = Math.cos(Direction(Player, Enemy)) * 3;
+				Enemy.YVel = Math.sin(Direction(Player, Enemy)) * 3;
+				Enemy.Flashing = 30;
+				Enemy.Health -= 1;
+			}
+
+			if (Enemy.Health > 0) {
+				PathShape(Enemy.X, Enemy.Y, 3, Enemy.Dir, 12);
+				Context.lineWidth = 9;
+				Context.lineJoin = "round";
+				Context.strokeStyle = "#000000";
+				Context.stroke();
+				Context.lineWidth = 3;
+				Context.strokeStyle = `hsl(46, 88%, ${Math.max(Enemy.Flashing, 0) * 2.5 + 50}%)`;
+				Context.stroke();
+				Context.lineJoin = "miter";
+			} else {
+				for (let ii = 0; ii < 4; ii++) {Particles.push(new Particle(Enemy.X, Enemy.Y, new Color(46, 88, 50), .75));}
+				for (let ii = 0; ii < 2; ii++) {Particles.push(new Particle(Enemy.X, Enemy.Y, new Color(0, 0, 100), 1));}
+				Enemies.splice(i, 1);
+			}
 		}
 	}
 }
@@ -295,43 +355,41 @@ function CalcBullets() {
 		Bullet.X += Math.cos(Bullet.Dir) * Bullet.Speed * Delta;
 		Bullet.Y += Math.sin(Bullet.Dir) * Bullet.Speed * Delta;
 
+		for (let i = 0; i < Enemies.length; i++) {
+			let Enemy = Enemies[i];
+
+			if (Distance(Enemy, Bullet) < 20 && Bullet.Piercings > 0 && Bullet.Hits.indexOf(Enemy) == -1) {
+				Enemy.Health -= 1 + Upgrades.Damage;
+				Enemy.Flashing = 30;
+				Enemy.XVel = Math.cos(Bullet.Dir) * Upgrades.KB * 2;
+				Enemy.YVel = Math.sin(Bullet.Dir) * Upgrades.KB * 2;
+				Bullet.Hits.push(Enemy);
+				for (let ii = 0; ii < 4; ii++) {Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100), 1));}
+				Bullet.Piercings -= 1;
+			}
+		}
+
+		if (Bullet.Piercings <= 0) {
+			Bullets.splice(i, 1);
+		}
+
 		if (Bullet.X < Windows[0].X) {
 			Windows[0].LeftVel += Upgrades.KB + 2;
 			Bullets.splice(i, 1);
-			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
-			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
-			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
-			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
-			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
-			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
+			for (let ii = 0; ii < 6; ii++) {Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100), 1));}
 		} else if (Bullet.Y < Windows[0].Y) {
 			Windows[0].TopVel += Upgrades.KB + 2;
 			Bullets.splice(i, 1);
-			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
-			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
-			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
-			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
-			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
-			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
+			for (let ii = 0; ii < 6; ii++) {Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100), 1));}
 		} else if (Bullet.X > Windows[0].X + Windows[0].SizeX) {
 			Windows[0].RightVel += Upgrades.KB + 2;
 			Bullets.splice(i, 1);
-			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
-			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
-			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
-			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
-			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
-			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
+			for (let ii = 0; ii < 6; ii++) {Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100), 1));}
 		} else if (Bullet.Y > Windows[0].Y + Windows[0].SizeY) {
 			Windows[0].BottomVel += Upgrades.KB + 2;
 			Bullets.splice(i, 1);
-			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
-			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
-			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
-			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
-			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
-			Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100)));
-		} else {
+			for (let ii = 0; ii < 6; ii++) {Particles.push(new Particle(Bullet.X, Bullet.Y, new Color(0, 0, 100), 1));}
+		} else if (Bullet == Bullets[i]) {
 			Context.beginPath();
 			Context.ellipse(Bullet.X, Bullet.Y, 8, 4, Bullet.Dir, 0, Rad);
 			Context.fillStyle = "white";
@@ -347,8 +405,8 @@ function CalcParticles() {
 	for (let i = 0; i < Particles.length; i++) {
 		let Particle = Particles[i];
 
-		Particle.X += Math.cos(Particle.Dir) * 2 * Delta;
-		Particle.Y += Math.sin(Particle.Dir) * 2 * Delta;
+		Particle.X += Math.cos(Particle.Dir) * 2 * Delta * Particle.Moving;
+		Particle.Y += Math.sin(Particle.Dir) * 2 * Delta * Particle.Moving;
 
 		Particle.Size -= .1 * Delta;
 
@@ -360,6 +418,10 @@ function CalcParticles() {
 			Context.fillStyle = `hsl(${Particle.Color.Hue}, ${Particle.Color.Staturation}%, ${Particle.Color.Lightness}%)`;
 			Context.fill();
 		}
+
+		if (Particles.length > 50 + Grapchicks) {
+			Particle.Size /= 1.2 * Delta;
+		}
 	}
 }
 
@@ -368,9 +430,9 @@ function CalcWindows() {
 		let Window = Windows[i];
 
 		if (i === 0) {
-			Window.LeftVel -= (Diff / 60 / 3600 + .015) / 400 * Window.SizeX * Delta;
-			Window.RightVel -= (Diff / 60 / 3600 + .015) / 400 * Window.SizeX * Delta;
-			Window.BottomVel -= (Diff / 60 / 3600 + .015) / 400 * Window.SizeY * Delta;
+			Window.LeftVel -= (Diff / 60 / 36000 + .015) / 400 * Window.SizeX * Delta;
+			Window.RightVel -= (Diff / 60 / 36000 + .015) / 400 * Window.SizeX * Delta;
+			Window.BottomVel -= (Diff / 60 / 36000 + .015) / 400 * Window.SizeY * Delta;
 			Window.TopVel -= (Diff / 60 / 3600 + .015) / 400 * Window.SizeY * Delta;
 			Window.LeftVel /= 1 + (.05 * Delta);
 			Window.RightVel /=  1 + (.05 * Delta);
@@ -402,19 +464,33 @@ function Frame() {
 	BackgroundCanvas.width = Size.X;
 	BackgroundCanvas.height = Size.Y;
 	Delta = Math.floor((((Date.now() - StartTime) / 1000) - CurrTime) * TimeScale * 6000) / 100;
+	Grapchicks = ((Grapchicks * 9) + (100 - (Delta * 50) + 50 + ((TimeScale - 1) * 50))) / 10;
 	if (GameState.State === "Paused" || GameState.State === "Shop") {Delta = 0}
 	Diff += Delta;
 	CurrTime = (Date.now() - StartTime) / 1000;
 
+	NewEnemy -= 1 * Delta;
+	if (NewEnemy <= 0) {
+		NewEnemy = 10 - Diff / 3600;
+		Enemies.push(new Enemy(Math.round(Math.random()) * Size.X, Math.round(Math.random()) * Size.Y, "Triangle"));
+	}
+
 	Context.clearRect(0, 0, Size.X, Size.Y);
 
+	CalcParticles();
 	CalcBullets();
 	CalcPlayer();
 	CalcEnemies();
-	CalcParticles();
 	BackgroundContext.clearRect(0, 0, Size.X, Size.Y);
 	BackgroundContext.drawImage(Get("BackgroundImage"), 0, 0, Size.X + 1, Size.Y + 1)
 	CalcWindows();
+
+	if (DebugVars.InfWindow == true) {
+		Windows[0].X = 0;
+		Windows[0].Y = 0;
+		Windows[0].SizeX = Size.X;
+		Windows[0].SizeY = Size.Y;
+	}
 
 	GameState.FirstFrame = false
 
